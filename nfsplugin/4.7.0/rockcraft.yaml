@@ -1,0 +1,58 @@
+# Dockerfile: https://github.com/kubernetes-csi/csi-driver-nfs/blob/v4.7.0/Dockerfile
+name: nfsplugin
+summary: NFS CSI driver for Kubernetes rock
+description: |
+    A rock containing the NFS CSI driver for Kubernetes.
+
+    This CSI driver supports dynamic provisioning of Persistent Volumes via
+    Persistent Volume Claims by creating a new sub directory under NFS server.
+license: Apache-2.0
+version: 4.7.0
+
+base: bare
+build-base: ubuntu@22.04
+run-user: _daemon_
+
+platforms:
+  amd64:
+  arm64:
+
+environment:
+  APP_VERSION: 4.7.0
+
+# Services to be loaded by the Pebble entrypoint
+services:
+  install-cni:
+    override: replace
+    startup: enabled
+    command: "/nfsplugin"
+    on-success: shutdown
+    on-failure: shutdown
+
+parts:
+  add-dependencies:
+    plugin: nil
+    stage-packages:
+      - ca-certificates
+      - mount
+      - nfs-common
+      - netbase
+
+  build-nfs-plugin:
+    plugin: go
+    source: https://github.com/kubernetes-csi/csi-driver-nfs.git
+    source-type: git
+    source-tag: v${CRAFT_PROJECT_VERSION}
+    source-depth: 1
+    build-snaps:
+      - go/1.22/stable
+    build-environment:
+      - CGO_ENABLED: 0
+      - GOOS: linux
+      - GOARCH: $CRAFT_ARCH_BUILD_FOR
+    go-buildtags:
+      - "mod=vendor"
+    go-generate:
+      - ./cmd/nfsplugin
+    organize:
+      bin/nfsplugin: ./
