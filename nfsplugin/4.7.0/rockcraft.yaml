@@ -22,7 +22,7 @@ environment:
 
 # Services to be loaded by the Pebble entrypoint
 services:
-  install-cni:
+  nfsplugin:
     override: replace
     startup: enabled
     command: "/nfsplugin"
