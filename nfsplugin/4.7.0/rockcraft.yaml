@@ -25,9 +25,11 @@ services:
   nfsplugin:
     override: replace
     startup: enabled
-    command: "/nfsplugin"
+    command: "/nfsplugin [ --help ]"
     on-success: shutdown
     on-failure: shutdown
+
+entrypoint-service: nfsplugin
 
 parts:
   add-dependencies:
