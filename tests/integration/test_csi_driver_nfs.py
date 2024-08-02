@@ -28,12 +28,17 @@ def _get_nfsplugin_csi_helm_cmd(version: str):
         k8s_util.HelmImage(SNAPSHOTTER_IMG, subitem="csiSnapshotter"),
     ]
 
+    set_configs = [
+        "externalSnapshotter.enabled=true",
+    ]
+
     return k8s_util.get_helm_install_command(
         "csi-driver-nfs",
         "csi-driver-nfs",
         repository="https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts",
         chart_version="v4.7.0",
         images=images,
+        set_configs=set_configs,
     )
 
 
@@ -42,3 +47,4 @@ def test_nfsplugin_integration(function_instance: harness.Instance):
 
     k8s_util.wait_for_daemonset(function_instance, "csi-nfs-node", "kube-system")
     k8s_util.wait_for_deployment(function_instance, "csi-nfs-controller", "kube-system")
+    k8s_util.wait_for_deployment(function_instance, "snapshot-controller", "kube-system")
