@@ -57,3 +57,8 @@ parts:
       - ./cmd/nfsplugin
     organize:
       bin/nfsplugin: ./
+    override-build: |
+      craftctl default
+
+      # nfsplugin requires the /tmp directory.
+      mkdir -p "${CRAFT_PART_INSTALL}/tmp"
