@@ -3,11 +3,15 @@
 #
 
 import logging
+import pathlib
 
 from k8s_test_harness import harness
-from k8s_test_harness.util import env_util, exec_util, k8s_util
+from k8s_test_harness.util import constants, env_util, exec_util, k8s_util
 
 LOG = logging.getLogger(__name__)
+
+DIR = pathlib.Path(__file__).absolute().parent
+MANIFESTS_DIR = DIR / ".." / "templates"
 
 
 def _get_nfsplugin_csi_helm_cmd(version: str):
@@ -32,8 +36,10 @@ def _get_nfsplugin_csi_helm_cmd(version: str):
 
 
 def test_nfsplugin_integration(function_instance: harness.Instance):
-    function_instance.exec(_get_nfsplugin_csi_helm_cmd("4.7.0"))
+    helm_command = _get_nfsplugin_csi_helm_cmd("4.7.0")
+    function_instance.exec(helm_command)
 
+    # wait for all the components to become active.
     k8s_util.wait_for_daemonset(function_instance, "csi-nfs-node", "kube-system")
     k8s_util.wait_for_deployment(function_instance, "csi-nfs-controller", "kube-system")
     k8s_util.wait_for_deployment(
@@ -46,3 +52,36 @@ def test_nfsplugin_integration(function_instance: harness.Instance):
         exec_util.stubbornly(retries=5, delay_s=5).on(function_instance).exec(
             ["curl", f"http://localhost:{port}/healthz"]
         )
+
+    # Deploy a NFS server and an nginx Pod with a NFS volume attached.
+    for item in ["nfs-server.yaml", "nginx-pod.yaml"]:
+        manifest = MANIFESTS_DIR / item
+        function_instance.exec(
+            ["k8s", "kubectl", "apply", "-f", "-"],
+            input=pathlib.Path(manifest).read_bytes(),
+        )
+
+    # Expect the Pod to become ready, and that it has the volume attached.
+    k8s_util.wait_for_deployment(function_instance, "nfs-server")
+    k8s_util.wait_for_resource(
+        function_instance,
+        "pod",
+        "nginx-nfs-example",
+        condition=constants.K8S_CONDITION_READY,
+    )
+
+    process = function_instance.exec(
+        [
+            "k8s",
+            "kubectl",
+            "exec",
+            "nginx-nfs-example",
+            "--",
+            "bash",
+            "-c",
+            "findmnt /var/www -o TARGET,SOURCE,FSTYPE",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert "/var/www nfs-server.default.svc.cluster.local:/ nfs4" in process.stdout
